@@ -1,0 +1,62 @@
+version: "3.3"
+
+services:
+  db:
+    image: mariadb:10.11
+    restart: unless-stopped
+    environment:
+      - MYSQL_ROOT_PASSWORD=change.me.please  # Requested, set the root's password of MySQL service.
+      - MYSQL_LOG_CONSOLE=true
+    volumes:
+      - mysql:/var/lib/mysql  # data persistent store.
+    networks:
+      - internal
+    labels:
+     - traefik.enable=false
+
+  memcached:
+    image: memcached:1.5.6
+    restart: unless-stopped
+    entrypoint: memcached -m 256
+    networks:
+      - internal
+    labels:
+     - traefik.enable=false
+          
+  seafile:
+    image: seafileltd/seafile-mc:latest
+    restart: unless-stopped
+    ports:
+      - "80"
+    volumes:
+      - seafile:/shared   # data persistent store.
+    environment:
+      - DB_HOST=db
+      - DB_ROOT_PASSWD=change.me.please
+      - TIME_ZONE=Asia/Bangkok
+      - SEAFILE_ADMIN_EMAIL=name@example.com
+      - SEAFILE_ADMIN_PASSWORD=mypassword
+      - SEAFILE_SERVER_LETSENCRYPT=false   # becuase of use traefik
+      - SEAFILE_SERVER_HOSTNAME=seafile.example.com
+
+    labels:
+      - traefik.http.routers.seafile.rule=Host(`seafile.example.com`)
+      - traefik.http.routers.seafile.tls=true
+      - traefik.http.routers.seafile.tls.certresolver=lets-encrypt
+      - traefik.http.services.seafile.loadbalancer.server.port=80
+
+    depends_on:
+      - db
+      - memcached
+    networks:
+      - internal
+      - web
+
+volumes:
+  mysql:
+  seafile:
+
+networks:
+  internal:
+  web:
+    external: true
